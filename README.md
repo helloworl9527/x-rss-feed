@@ -5,7 +5,7 @@
 订阅地址：
 
 ```text
-https://helloworl9527.github.io/x-rss-feed/feeds/weixin_wechat.xml
+https://mystool.me/x-rss-feed/feeds/weixin_wechat.xml
 ```
 
 ## 维护
@@ -16,4 +16,3 @@ https://helloworl9527.github.io/x-rss-feed/feeds/weixin_wechat.xml
 - RSSHub 或 X 接口临时故障时，工作流会失败，但上一次成功发布的 RSS 仍然保留。
 
 Token 仅保存在 GitHub Actions Secret 中，不在仓库文件里。
-
