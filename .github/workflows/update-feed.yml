@@ -1,0 +1,98 @@
+name: Update X RSS feed
+
+on:
+  schedule:
+    # 避开每小时整点的 Actions 高峰；UTC 时间每小时 17、47 分运行。
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: x-rss-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Start RSSHub
+        env:
+          TWITTER_AUTH_TOKEN: ${{ secrets.TWITTER_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$TWITTER_AUTH_TOKEN"
+          docker run --rm -d \
+            --name rsshub-x \
+            --cpus 1 \
+            --memory 768m \
+            -p 127.0.0.1:1200:1200 \
+            -e NODE_ENV=production \
+            -e CACHE_TYPE=memory \
+            -e MEMORY_MAX=64 \
+            -e REQUEST_RETRY=1 \
+            -e REQUEST_TIMEOUT=30000 \
+            -e NO_LOGFILES=true \
+            -e TWITTER_AUTH_TOKEN \
+            diygod/rsshub:latest
+
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:1200/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs rsshub-x
+          exit 1
+
+      - name: Generate feed
+        run: |
+          set -euo pipefail
+          mkdir -p public/feeds
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 5 --max-time 90 \
+            http://127.0.0.1:1200/twitter/user/weixin_wechat \
+            --output public/feeds/weixin_wechat.xml
+
+          grep -Eq '<(rss|feed)([ >])' public/feeds/weixin_wechat.xml
+
+          cat > public/index.html <<'HTML'
+          <!doctype html>
+          <html lang="zh-CN">
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>X RSS Feed</title>
+          <h1>X RSS Feed</h1>
+          <p><a href="feeds/weixin_wechat.xml">weixin_wechat</a></p>
+          HTML
+
+      - name: Stop RSSHub
+        if: always()
+        run: docker stop rsshub-x >/dev/null 2>&1 || true
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
