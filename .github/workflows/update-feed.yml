@@ -5,8 +5,8 @@ on:
     branches:
       - main
   schedule:
-    # 避开每小时整点的 Actions 高峰；UTC 时间每小时 17、47 分运行。
-    - cron: "17,47 * * * *"
+    # 北京时间每天 07:00、11:00、20:00（UTC 前一天 23:00、当天 03:00、12:00）。
+    - cron: "0 3,12,23 * * *"
   workflow_dispatch:
 
 permissions:
