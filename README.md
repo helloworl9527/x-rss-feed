@@ -1,11 +1,12 @@
 # X RSS Feed
 
-使用 GitHub Actions 每 30 分钟启动一次 RSSHub，抓取 X 账号 `weixin_wechat`，然后把静态 RSS 发布到 GitHub Pages。
+使用 GitHub Actions 每 30 分钟启动一次 RSSHub，抓取 X 账号 `weixin_wechat` 和 `openai`，然后把静态 RSS 发布到 GitHub Pages。
 
 订阅地址：
 
 ```text
 https://mystool.me/x-rss-feed/feeds/weixin_wechat.xml
+https://mystool.me/x-rss-feed/feeds/openai.xml
 ```
 
 ## 维护

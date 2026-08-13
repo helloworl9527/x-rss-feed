@@ -61,7 +61,13 @@ jobs:
             http://127.0.0.1:1200/twitter/user/weixin_wechat \
             --output public/feeds/weixin_wechat.xml
 
+          curl --fail --silent --show-error \
+            --retry 3 --retry-delay 5 --max-time 90 \
+            http://127.0.0.1:1200/twitter/user/openai \
+            --output public/feeds/openai.xml
+
           grep -Eq '<(rss|feed)([ >])' public/feeds/weixin_wechat.xml
+          grep -Eq '<(rss|feed)([ >])' public/feeds/openai.xml
 
           cat > public/index.html <<'HTML'
           <!doctype html>
@@ -71,6 +77,7 @@ jobs:
           <title>X RSS Feed</title>
           <h1>X RSS Feed</h1>
           <p><a href="feeds/weixin_wechat.xml">weixin_wechat</a></p>
+          <p><a href="feeds/openai.xml">openai</a></p>
           HTML
 
       - name: Stop RSSHub
@@ -95,4 +102,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
