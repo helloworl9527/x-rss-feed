@@ -1,6 +1,6 @@
 # X RSS Feed
 
-使用 GitHub Actions 每天定时启动三次 RSSHub，抓取 X 账号 `weixin_wechat`、`openai`、`github`、`claudeai`、`elonmusk` 和 `bbchinesd`，然后把静态 RSS 发布到 GitHub Pages。
+使用 GitHub Actions 每天定时启动三次 RSSHub，抓取 X 账号 `weixin_wechat`、`openai`、`github`、`claudeai`、`elonmusk` 和 BBC 中文（`bbcchinese`），然后把静态 RSS 发布到 GitHub Pages。
 
 订阅地址：
 
