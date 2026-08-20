@@ -69,8 +69,18 @@ jobs:
             http://127.0.0.1:1200/twitter/user/openai \
             --output public/feeds/openai.xml
 
+          for account in github claudeai elonmusk bbchinesd; do
+            curl --fail --silent --show-error \
+              --retry 3 --retry-delay 5 --max-time 90 \
+              "http://127.0.0.1:1200/twitter/user/$account" \
+              --output "public/feeds/$account.xml"
+          done
+
           grep -Eq '<(rss|feed)([ >])' public/feeds/weixin_wechat.xml
           grep -Eq '<(rss|feed)([ >])' public/feeds/openai.xml
+          for account in github claudeai elonmusk bbchinesd; do
+            grep -Eq '<(rss|feed)([ >])' "public/feeds/$account.xml"
+          done
 
           cat > public/index.html <<'HTML'
           <!doctype html>
@@ -81,6 +91,10 @@ jobs:
           <h1>X RSS Feed</h1>
           <p><a href="feeds/weixin_wechat.xml">weixin_wechat</a></p>
           <p><a href="feeds/openai.xml">openai</a></p>
+          <p><a href="feeds/github.xml">github</a></p>
+          <p><a href="feeds/claudeai.xml">claudeai</a></p>
+          <p><a href="feeds/elonmusk.xml">elonmusk</a></p>
+          <p><a href="feeds/bbchinesd.xml">bbchinesd</a></p>
           HTML
 
       - name: Stop RSSHub
