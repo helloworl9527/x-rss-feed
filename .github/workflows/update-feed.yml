@@ -21,7 +21,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Sequential fetches plus the pause between accounts need more than the old 15 minutes.
+    timeout-minutes: 40
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -59,50 +60,118 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p public/feeds
-          curl --fail --silent --show-error \
-            --retry 3 --retry-delay 5 --max-time 90 \
-            http://127.0.0.1:1200/twitter/user/weixin_wechat \
-            --output public/feeds/weixin_wechat.xml
 
-          curl --fail --silent --show-error \
-            --retry 3 --retry-delay 5 --max-time 90 \
-            http://127.0.0.1:1200/twitter/user/openai \
-            --output public/feeds/openai.xml
+          # Lowercase filenames match existing feeds (OpenAI -> openai.xml).
+          # @antigravity @AnthropicAI @googlegemma @Z_Lib_official @NotionHQ @Google @naval @ssamat
+          # Each entry is "screen_name output_name". BBC Chinese keeps its old filename.
+          feeds=(
+            "weixin_wechat weixin_wechat"
+            "openai openai"
+            "github github"
+            "claudeai claudeai"
+            "elonmusk elonmusk"
+            "thsottiaux thsottiaux"
+            "antigravity antigravity"
+            "anthropicai anthropicai"
+            "googlegemma googlegemma"
+            "z_lib_official z_lib_official"
+            "notionhq notionhq"
+            "google google"
+            "naval naval"
+            "ssamat ssamat"
+            "bbcchinese bbchinesd"
+          )
 
-          for account in github claudeai elonmusk thsottiaux; do
-            curl --fail --silent --show-error \
-              --retry 3 --retry-delay 5 --max-time 90 \
-              "http://127.0.0.1:1200/twitter/user/$account" \
-              --output "public/feeds/$account.xml"
+          pages_base="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/feeds"
+
+          is_feed() {
+            grep -Eq '<(rss|feed)([ >])' "$1"
+          }
+
+          fetch_feed() {
+            local handle="$1"
+            local name="$2"
+            local dest="public/feeds/${name}.xml"
+            local tmp
+            tmp="$(mktemp)"
+
+            if curl --fail --silent --show-error \
+                --retry 3 --retry-delay 5 --max-time 90 \
+                "http://127.0.0.1:1200/twitter/user/${handle}" \
+                --output "$tmp" \
+              && is_feed "$tmp"; then
+              mv "$tmp" "$dest"
+              echo "Updated ${name} from @${handle}"
+              return 0
+            fi
+
+            rm -f "$tmp"
+            echo "::warning::Skipping @${handle}; this account will not fail the build"
+
+            # A partial Pages deploy replaces the whole site, so copy the last
+            # published file back into this artifact when the new fetch fails.
+            if [[ -f "$dest" ]] && is_feed "$dest"; then
+              echo "Keeping existing ${dest}"
+              return 0
+            fi
+
+            tmp="$(mktemp)"
+            if curl --fail --silent --show-error --location \
+                --retry 2 --retry-delay 2 --max-time 30 \
+                "${pages_base}/${name}.xml" \
+                --output "$tmp" \
+              && is_feed "$tmp"; then
+              mv "$tmp" "$dest"
+              echo "Kept previous feed for ${name}"
+              return 0
+            fi
+
+            rm -f "$tmp" "$dest"
+            echo "::warning::No previous feed file for ${name}"
+            return 0
+          }
+
+          i=0
+          for entry in "${feeds[@]}"; do
+            if [[ "$i" -gt 0 ]]; then
+              sleep 5
+            fi
+            i=$((i + 1))
+            read -r handle name <<< "$entry"
+            fetch_feed "$handle" "$name"
           done
 
-          # BBC Chinese's X handle is bbcchinese; keep the old filename for existing subscribers.
-          curl --fail --silent --show-error \
-            --retry 3 --retry-delay 5 --max-time 90 \
-            http://127.0.0.1:1200/twitter/user/bbcchinese \
-            --output public/feeds/bbchinesd.xml
-
-          grep -Eq '<(rss|feed)([ >])' public/feeds/weixin_wechat.xml
-          grep -Eq '<(rss|feed)([ >])' public/feeds/openai.xml
-          for account in github claudeai elonmusk thsottiaux bbchinesd; do
-            grep -Eq '<(rss|feed)([ >])' "public/feeds/$account.xml"
+          kept=0
+          for entry in "${feeds[@]}"; do
+            name="${entry##* }"
+            dest="public/feeds/${name}.xml"
+            if [[ -f "$dest" ]] && is_feed "$dest"; then
+              kept=$((kept + 1))
+            else
+              rm -f "$dest"
+            fi
           done
+          if [[ "$kept" -eq 0 ]]; then
+            echo "Every account failed and no previous feed file was available." >&2
+            exit 1
+          fi
+          echo "Ready to publish ${kept} feed(s)."
 
-          cat > public/index.html <<'HTML'
-          <!doctype html>
-          <html lang="zh-CN">
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width,initial-scale=1">
-          <title>X RSS Feed</title>
-          <h1>X RSS Feed</h1>
-          <p><a href="feeds/weixin_wechat.xml">weixin_wechat</a></p>
-          <p><a href="feeds/openai.xml">openai</a></p>
-          <p><a href="feeds/github.xml">github</a></p>
-          <p><a href="feeds/claudeai.xml">claudeai</a></p>
-          <p><a href="feeds/elonmusk.xml">elonmusk</a></p>
-          <p><a href="feeds/thsottiaux.xml">thsottiaux</a></p>
-          <p><a href="feeds/bbchinesd.xml">bbchinesd</a></p>
-          HTML
+          {
+            printf '%s\n' \
+              '<!doctype html>' \
+              '<html lang="zh-CN">' \
+              '<meta charset="utf-8">' \
+              '<meta name="viewport" content="width=device-width,initial-scale=1">' \
+              '<title>X RSS Feed</title>' \
+              '<h1>X RSS Feed</h1>'
+            for entry in "${feeds[@]}"; do
+              name="${entry##* }"
+              if [[ -f "public/feeds/${name}.xml" ]]; then
+                printf '<p><a href="feeds/%s.xml">%s</a></p>\n' "$name" "$name"
+              fi
+            done
+          } > public/index.html
 
       - name: Stop RSSHub
         if: always()
